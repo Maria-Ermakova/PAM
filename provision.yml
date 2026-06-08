@@ -12,25 +12,33 @@
     - name: Создать пользователя otus
       ansible.builtin.user:
         name: otus
-        password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
+        password: "{{ '1234' | password_hash('sha512') }}"
         state: present
 
     - name: Создать пользователя otusadm
       ansible.builtin.user:
         name: otusadm
         group: admin
-        password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
+        password: "{{ '1234' | password_hash('sha512') }}"
         state: present
 
     - name: Добавить существующих пользователей в группу admin
       ansible.builtin.user:
-        name: “{{ item }}”
+        name: "{{ item }}"
         groups: admin
         #исключить перезапись остальных групп кроме основной
         append: yes
       loop:
         - root
         - vagrant
+  
+    - name: Разрешить аутентификацию по паролю в SSH
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication yes'
+      notify: restart_sshd
+    
     - name: Создать скрипт проверки доступа
       ansible.builtin.copy:
         dest: /usr/local/bin/check_access.sh
@@ -58,8 +66,8 @@
     - name: Настроить PAM на использование скрипта
       ansible.builtin.lineinfile:
         path: /etc/pam.d/sshd
-        insertbefore: ‘^session\s+required\s+pam_permit.so’
-        line: ‘auth required pam_exec.so debug /usr/local/bin/check_access.sh’
+        insertbefore: '^session\s+required\s+pam_permit.so'
+        line: 'auth required pam_exec.so debug /usr/local/bin/check_access.sh'
         backup: yes
       notify: restart_sshd
       tags:
@@ -67,6 +75,6 @@
 
   handlers:
     - name: restart_sshd
-      ansible.builtin.service:
+      ansible.builtin.systemd:
         name: sshd
         state: restarted
