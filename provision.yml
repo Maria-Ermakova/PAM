@@ -3,70 +3,70 @@
   become: yes
   gather_facts: yes
 
-- name: Создать группу admin
-  ansible.builtin.group:
-    name: admin
-    state: present
+  tasks:
+    - name: Создать группу admin
+      ansible.builtin.group:
+        name: admin
+        state: present
 
-- name: Создать пользователя otus
-  ansible.builtin.user:
-    name: otus
-    password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
-    state: present
+    - name: Создать пользователя otus
+      ansible.builtin.user:
+        name: otus
+        password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
+        state: present
 
- - name: Создать пользователя otusadm
-  ansible.builtin.user:
-    name: otusadm
-    group: admin
-    password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
-    state: present
+    - name: Создать пользователя otusadm
+      ansible.builtin.user:
+        name: otusadm
+        group: admin
+        password: “{{ ‘1234’ | password_hash(‘sha512’) }}”
+        state: present
 
-- name: Добавить существующих пользователей в группу admin
-  ansible.builtin.user:
-    name: “{{ item }}”
-    groups: admin
-    #исключить перезапись остальных групп кроме основной
-    append: yes
-  loop:
-    - root
-    - vagrant
- 
-- name: Создать скрипт проверки доступа
-  ansible.builtin.copy:
-    dest: /usr/local/bin/check_access.sh
-    mode: '0755'
-    content: |
-      #!/bin/bash
-      # Первое условие: если день недели суббота или воскресенье (номер 6 или 7)
-      if [ $(date +%u) -ge 6 ]; then
-        # Второе условие: входит ли пользователь в группу admin
-        # Переменная PAM_USER передаётся PAM-модулем pam_exec.so автоматически
-        if getent group admin | grep -qw "$PAM_USER"; then
-          # Если пользователь входит в группу admin, то он может подключиться
-          exit 0
-        else
-          # Иначе ошибка (не сможет подключиться)
-          exit 1
-        fi
-      # Если день не выходной, то подключиться может любой пользователь
-      else
-        exit 0
-      fi
-  tags:
-    - pam_exec
-    
- - name: Настроить PAM на использование скрипта
-   ansible.builtin.lineinfile:
-     path: /etc/pam.d/sshd
-     insertbefore: ‘^session\s+required\s+pam_permit.so’
-     line: ‘auth required pam_exec.so debug /usr/local/bin/check_access.sh’
-     backup: yes
-   notify: restart_sshd
-   tags:
-     - pam_exec
+    - name: Добавить существующих пользователей в группу admin
+      ansible.builtin.user:
+        name: “{{ item }}”
+        groups: admin
+        #исключить перезапись остальных групп кроме основной
+        append: yes
+      loop:
+        - root
+        - vagrant
+    - name: Создать скрипт проверки доступа
+      ansible.builtin.copy:
+        dest: /usr/local/bin/check_access.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # Первое условие: если день недели суббота или воскресенье (номер 6 или 7)
+          if [ $(date +%u) -ge 6 ]; then
+            # Второе условие: входит ли пользователь в группу admin
+            # Переменная PAM_USER передаётся PAM-модулем pam_exec.so автоматически
+            if getent group admin | grep -qw "$PAM_USER"; then
+              # Если пользователь входит в группу admin, то он может подключиться
+              exit 0
+            else
+              # Иначе ошибка (не сможет подключиться)
+              exit 1
+            fi
+          # Если день не выходной, то подключиться может любой пользователь
+          else
+            exit 0
+          fi
+      tags:
+        - pam_exec
+
+    - name: Настроить PAM на использование скрипта
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        insertbefore: ‘^session\s+required\s+pam_permit.so’
+        line: ‘auth required pam_exec.so debug /usr/local/bin/check_access.sh’
+        backup: yes
+      notify: restart_sshd
+      tags:
+        - pam_exec
 
   handlers:
-  - name: restart_sshd
-    ansible.builtin.service:
-      name: sshd
-      state: restarted
+    - name: restart_sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
